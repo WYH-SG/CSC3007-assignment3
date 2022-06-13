@@ -4,11 +4,27 @@
   <meta charset="UTF-8">
   <style>
 
+    body {
+        background-color: dimgray;
+    }
+
+    .tooltip {
+        position: absolute;
+        text-align: center;
+        /* margin-left: auto; */
+        /* margin-right: auto; */
+        padding: 5px;
+        background-color: white;
+        border: 1px solid black;
+        border-radius: 5px;
+    }
+
   </style>
 </head>
 
 <body>
 <svg></svg>
+<div class="tooltip"></div>
 <script src="https://d3js.org/d3.v7.min.js"></script>
 
 <script>
@@ -23,11 +39,10 @@ let svg = d3.select("svg")
 // Load external data
 Promise.all([d3.json("sgmap.json"), d3.csv("population2021.csv")]).then(data => {
 
-    delete data[1]['columns'] // Delete the columns array so toUpperCase() function won't get an error
     console.log("sgmap.json", data[0]);
     console.log("population2021.csv", data[1]); // Key: Subzone, Planning Area, Population
 
-    /*
+    /******************************************************************************
         References: 
         https://stackoverflow.com/questions/684672/how-do-i-loop-through-or-enumerate-a-javascript-object
         https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Array/forEach
@@ -35,12 +50,9 @@ Promise.all([d3.json("sgmap.json"), d3.csv("population2021.csv")]).then(data => 
         Loop through the population data
         Set all the "Subzone" into Upper case letters
         map subzone to population
-    */
-    // Object.keys(data[0].features).forEach((key) => {
-    //     districtName = data[0].features[key].properties['Name'];
-    //     // console.log(data[0].features[key]);
-    // })
-    // console.log(districtName);
+    ******************************************************************************/
+
+    delete data[1]['columns'] // Delete the columns array so toUpperCase() function won't get an error
 
     Object.keys(data[1]).forEach((key) => {
         // console.log(data[1][key]['Subzone'].toUpperCase());
@@ -51,6 +63,11 @@ Promise.all([d3.json("sgmap.json"), d3.csv("population2021.csv")]).then(data => 
     })
     console.log(districtMap)
 
+    // Set the colorScale for the Map district
+    // Color schemes link: https://observablehq.com/@d3/color-schemes
+    var colorScale = d3.scaleThreshold()
+    .domain([100, 500, 1000, 5000, 10000, 20000, 30000, 40000, 50000])
+    .range(d3.schemePuBuGn[9]); // max domain range is 9
 
     // Map and projection
     var projection = d3.geoMercator()
@@ -58,6 +75,10 @@ Promise.all([d3.json("sgmap.json"), d3.csv("population2021.csv")]).then(data => 
         .fitExtent([[20, 20], [980, 580]], data[0]);
 
     let geopath = d3.geoPath().projection(projection);
+
+    // Create a tooltip that select the div class "tooltip"
+    var tooltip = d3.select(".tooltip")
+        .style("opacity", 0)
 
     // Append <g> to the HTML <svg>
     svg.append("g")
@@ -72,11 +93,66 @@ Promise.all([d3.json("sgmap.json"), d3.csv("population2021.csv")]).then(data => 
         
         // Draw out the section of district
         .attr("d", geopath)
+
+        /*****************************************************************************
+            Style the District with ColorScale
+            Reference: https://d3-graph-gallery.com/graph/choropleth_basic.html
+
+            districtMap.get() => get() function look for keyword to match within the key
+            .data(data[0].features is the data inputted
+            so we match the keyword with d.properties.Name
+            d.total store the population of the district
+        ******************************************************************************/
+        .attr("fill", function(d) {
+            d.total = districtMap.get(d.properties.Name) || 0;
+            return colorScale(d.total);
+        })
         
-        // Hovertip, mouse interaction
-    
-        // Style the district
-        .attr("fill", "black");
+        /******************************************************************************
+            Mouse over hover effect
+            Reference: 
+            https://d3-graph-gallery.com/graph/choropleth_hover_effect.html
+            https://d3-graph-gallery.com/graph/interactivity_tooltip.html
+            
+            HTML inline variable
+            https://stackoverflow.com/questions/3304014/how-to-interpolate-variables-in-strings-in-javascript-without-concatenation
+        ******************************************************************************/
+        .style("stroke", "black")
+        .style("stroke-width", 0.5)
+        .style("opacity", .5)
+
+        .on("mouseover", (event, d) => {
+            d3.select(event.currentTarget)
+            .style("stroke", "black")
+            .style("stroke-width", 1)
+            .style("opacity", 1)
+
+            // Call the tooltip
+            tooltip
+                .transition()
+                .duration(100)
+                .style("opacity", 1)
+            tooltip
+                .html(`${d.properties.Name}` + `<br>` +`Population: ` + `${d.total}`)
+                .style("top", (event.pageY)+"px")
+                .style("left",(event.pageX)+"px")
+        })
+
+        .on("mouseout", (event, d) => {
+            d3.select(event.currentTarget)
+            .style("stroke", "black")
+            .style("stroke-width", 0.5)
+            .style("opacity", 0.5);
+            
+            // Hide the tooltip
+            tooltip
+                .transition()
+                .duration(100)
+                .style("opacity", 0)
+        })
+        
+        
+
 })
 
 </script>
